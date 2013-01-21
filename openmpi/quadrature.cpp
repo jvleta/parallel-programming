@@ -12,7 +12,7 @@ using namespace std;
 int main ( int argc, char *argv[] );
 double f ( double x );
 
-int main(int argc, char *argv[]) {
+double quad(double (*f)(double x), int processor_id) {
     double a;
     double b;
     double my_a;
@@ -26,34 +26,25 @@ int main(int argc, char *argv[]) {
     double my_total;
     int i;
     int q;
-    int processor_id;
     int number_of_processors;
+
     int tag;
     int target;
     int source;
-    double wtime;
 
+    
     MPI::Status status;
-
+    
     n = 10000000;
     total = 0.0;
     a = 0.0;
     b = 10.0;
-    exact = 0.49936338107645674464;
     
-    // Initialize MPI.
-    MPI::Init(argc, argv);
-
-    // Get this processor's ID.
-    processor_id = MPI::COMM_WORLD.Get_rank();
-
-    // Get the number of processors.
     number_of_processors = MPI::COMM_WORLD.Get_size();
     
     if (processor_id == 0) {
         my_n = n / (number_of_processors - 1);
         n = my_n * (number_of_processors - 1);
-        wtime = MPI::Wtime();
     }
     
     source = 0;
@@ -69,14 +60,13 @@ int main(int argc, char *argv[]) {
             
             // Compute the endpoints for this subinterval.
             my_a = ((double)(number_of_processors - q) * a + (double)(q - 1) * b) / (double)(number_of_processors - 1);
-            my_b = ((double)(number_of_processors - q - 1) * a + (double)(q    ) * b) / (double)(number_of_processors - 1);           
+            my_b = ((double)(number_of_processors - q - 1) * a + (double)(q) * b) / (double)(number_of_processors - 1);           
             
             tag = 1;
             MPI::COMM_WORLD.Send(&my_a, 1, MPI::DOUBLE, target, tag);
             
             tag = 2;
             MPI::COMM_WORLD.Send(&my_b, 1, MPI::DOUBLE, target, tag);
-
         }
 
         total = 0.0;
@@ -105,6 +95,31 @@ int main(int argc, char *argv[]) {
     // Have each process send its computed value to the master process.
     //
     MPI::COMM_WORLD.Reduce(&my_total, &total, 1, MPI::DOUBLE, MPI::SUM, 0);
+    
+    return total;
+}
+
+int main(int argc, char *argv[]) {
+    double error;
+    double exact;
+    double total;
+    double wtime;
+    int processor_id;
+    int number_of_processors;
+
+    exact = 0.49936338107645674464;
+    
+    // Initialize MPI.
+    MPI::Init(argc, argv);
+
+    processor_id = MPI::COMM_WORLD.Get_rank();
+
+    if (processor_id == 0) {
+        wtime = MPI::Wtime();
+    }
+
+    total = quad(&f, processor_id);
+    
     
     if (processor_id == 0) {
         error = fabs(total - exact);
